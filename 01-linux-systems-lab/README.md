@@ -4,7 +4,7 @@
 
 A hands-on Linux administration lab on an Ubuntu AWS EC2 instance, covering identity management, filesystem permissions, command-line file operations, text processing, block storage, and safe infrastructure cleanup.
 
-**Reference:** [DevOps Project 03 — Fun with Linux for Cloud & DevOps Engineers](https://github.com/NotHarshhaa/DevOps-Projects/tree/main/DevOps-Project-03)
+**Reference:** [DevOps Project 03 — Fun with Linux for Cloud & DevOps Engineers](https://github.com/NotHarshhaa/DevOps-Projects/tree/master/DevOps-Project-03)
 
 ## Environment
 
