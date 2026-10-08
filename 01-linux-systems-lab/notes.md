@@ -1,338 +1,227 @@
-# Linux Systems Administration Lab --- Learning Notes
+# Linux Systems Administration Lab — Learning Notes
 
-> Detailed working notes for Project 03. These notes capture
-> troubleshooting, reasoning, mistakes, and lessons that are
-> intentionally omitted from the portfolio README.
+> **Status:** Completed — October 2026  
+> Detailed working notes for [Project 03](https://github.com/NotHarshhaa/DevOps-Projects/tree/main/DevOps-Project-03). These notes preserve the reasoning, mistakes, and troubleshooting behind the concise portfolio README.
 
 ## Environment
 
--   AWS EC2
--   Ubuntu Linux
--   Bash / POSIX shell
+- Ubuntu Linux on AWS EC2 (`t3.micro`)
+- Root volume: 8 GiB; additional EBS volume: 5 GiB
+- Bash, GNU/Linux utilities, ext4
+- The instance and temporary EBS volume were deleted after the lab.
 
-## 1. Initial Users and Groups
+## 1. Users, Groups, and Identity
 
-Created `user1`, `user2`, and `user3`.
+Created `user1`, `user2`, and `user3`; configured `devops` and `aws` groups and primary/supplementary memberships. Later, `user1` created `user4`, `user5`, `app`, and `database` with elevated privileges.
 
-Created the groups:
+Useful commands:
 
--   `devops`
--   `aws`
-
-Configured:
-
--   `user2` → primary group `devops`
--   `user3` → primary group `devops`
--   `user1` → supplementary group `aws`
-
-Verified membership using `id`.
-
-### Lesson
-
-A Linux user has one primary group but can belong to multiple
-supplementary groups. `id <user>` is a quick way to verify both.
-
-## 2. Filesystem Structure
-
-Built the required hierarchy:
-
-``` text
-/dir1
-└── f1
-/dir2
-└── dir1
-    └── dir2
-        ├── dir10
-        └── f3
-/dir3
-└── dir11
-/dir4
-└── dir12
-    ├── f4
-    └── f5
-/dir5
-└── dir13
-/dir6
-/dir7
-├── dir10
-└── f3
-/dir8
-└── dir9
-/opt/dir14
-├── dir10
-└── f3
-/f1
-/f2
-```
-
-One early mistake was treating some required files as directories. This
-reinforced the basic distinction:
-
-``` bash
-mkdir   # creates a directory
-touch   # creates an empty regular file
-```
-
-## 3. Ownership Configuration
-
-The project required `/dir1`, `/dir7/dir10`, and `/f2` to be owned by
-`user1` and grouped under `devops`.
-
-Configured and verified them as:
-
-``` text
-/dir1        → user1:devops
-/dir7/dir10 → user1:devops
-/f2          → user1:devops
-```
-
-### Lesson
-
-Commands such as `chown` normally produce no output when successful.
-Always verify the resulting state with commands such as:
-
-``` bash
-ls -ld <path>
-```
-
-## 4. Creating user4 and user5
-
-The project required `user1` to create `user4`, `user5`, and the `app`
-and `database` groups.
-
-Running `useradd` directly as `user1` failed because modifying system
-account information requires elevated privileges.
-
-`sudo` also initially failed because `user1` was not authorized to use
-it. `user1` was added to the Ubuntu `sudo` group, a new login session
-was started, and the administrative commands could then be executed with
-`sudo`.
-
-### Lesson
-
-Membership in the `sudo` group does not make every command privileged.
-`sudo` elevates the specific command being executed.
-
-## 5. Missing Home Directory
-
-`user4` was created with `useradd`, but `/home/user4` did not exist.
-
-`getent passwd user4` showed `/home/user4` as the configured home path
-even though the directory itself had not been created.
-
-The home directory was created manually and ownership corrected to:
-
-``` text
-user4:user4
-```
-
-### Lesson
-
-The account database can specify a home directory without that directory
-actually existing. Account configuration and filesystem state are
-separate things.
-
-## 6. Login Shell
-
-`user4` initially used `/bin/sh`, which resulted in the minimal `$`
-shell prompt.
-
-The account configuration was inspected with:
-
-``` bash
+```bash
+id user1
 getent passwd user4
+getent group devops
+usermod -aG app user4
 ```
 
-and the login shell was changed to Bash.
+**Lessons:** A user has one primary group and may have multiple supplementary groups. Group changes may require a fresh login session. `getent` consults the system's configured name-service databases, which can include sources beyond local `/etc/passwd` and `/etc/group`.
 
-### Lesson
+### User setup problems
 
-The final field of a user's `/etc/passwd` entry identifies the
-configured login shell.
+- `user4` initially lacked an actual home directory despite having a home path in its account record; created the directory and corrected ownership.
+- `user4` initially had `/bin/sh` rather than Bash; inspected and changed the configured login shell.
+- `user1` could not run privileged account-management commands until given authorized `sudo` access. Membership in `sudo` does not elevate ordinary commands automatically.
 
-## 7. Creating /dir6/dir4 as user4
+## 2. Filesystem Hierarchy, Ownership, and Permissions
 
-`/dir6` initially belonged to `root:root` with mode `755`.
+Built the required nested `/dir1`–`/dir8` and `/opt/dir14` hierarchy and test files. Used `mkdir`, `touch`, `chown`, `chmod`, `ls -ld`, `mv`, and `rm` to manage them.
 
-As `user4`, creating `/dir6/dir4` failed with `Permission denied`.
+Required ownership examples included:
 
-Because `user4` fell under the `others` permission set, they had `r-x`
-but no write permission.
-
-Rather than granting broad access:
-
--   `user4` was added to the `app` group.
--   `/dir6` was assigned to the `app` group.
--   Group write permission was added.
-
-`user4` could then create `/dir6/dir4`.
-
-### Directory Permission Lesson
-
-For directories:
-
-  Permission   Meaning
-  ------------ --------------------------------------------------
-  `r`          List directory entries
-  `w`          Create, delete, or rename entries
-  `x`          Traverse/search the directory and access entries
-
-A particularly important correction was that **directory traversal
-requires `x`, not `r`**.
-
-## 8. Symbolic chmod
-
-At one point `/dir6` was changed using a numeric mode. A more targeted
-operation was:
-
-``` bash
-chmod g+w /dir6
+```text
+/dir1        user1:devops
+/dir7/dir10 user1:devops
+/f2          user1:devops (later renamed to /f4)
 ```
 
-### Lesson
+### Why operations failed
 
-Numeric modes are useful when setting the complete permission state
-deliberately. Symbolic modes are often safer when only one specific
-permission needs to change.
+- `user4` initially could not create `/dir6/dir4`: `/dir6` lacked group write permission. Configured an appropriate shared group and group permissions.
+- Moving `/dir1/f1` to `/dir2/dir1/dir2/` required appropriate permissions on **both parent directories**. The file's own write bit did not grant the ability to move its directory entry.
+- Creating `/f3` and renaming `/f2` to `/f4` as an ordinary user failed because `/` was `root:root` with mode `755`.
+- Later, `user2` and `user5` could not remove root-level directory entries for the same reason. Used root or explicitly elevated commands for those operations rather than making `/` globally writable.
 
-## 9. Creating /f3
+**Key rule:** For ordinary directory entry creation, deletion, and renaming, the parent directory generally needs `w+x`. Recursive deletion also depends on permissions within subdirectories. Sticky directories such as `/tmp` add further restrictions.
 
-The project required `user4` to create `/f3`.
+## 3. user1: Paths and File Manipulation
 
-This exposed a gap in the lab instructions. `/` was correctly owned by
-`root:root` with mode `755`, meaning `user4` had no write permission on
-the root directory.
+Completed the user1 exercises involving `/home/user2/dir1`, moving a test file to the user1 home directory, removing `/dir4`, clearing `/opt/dir14` contents, and writing the required text to `/f3`.
 
-Giving all users write permission on `/` would be unsafe.
+The relative-path task was originally completed using an absolute path rather than the requested relative path. From `/dir2/dir1/dir2/dir10`, the correct relative path to `/opt/dir14/dir10/f1` is:
 
-For the lab, `/f3` was created by root and ownership transferred to
-`user4`.
-
-Final state:
-
-``` text
-/f3 → user4:root
+```text
+../../../../opt/dir14/dir10/f1
 ```
 
-### Lesson
+This was identified afterward but not rerun. It remains a useful reminder to distinguish absolute paths (`/opt/...`) from paths resolved relative to the current working directory.
 
-Do not weaken an important system directory simply to make a lab command
-work. First understand which permission is actually missing and why.
+The requested text contained `!!`:
 
-## 10. Moving /dir1/f1
-
-The required operation was:
-
-``` text
-/dir1/f1 → /dir2/dir1/dir2/f1
+```text
+Linux assessment for an DevOps Engineer!! Learn with Fun!!
 ```
 
-Initially, `user4` could not perform the move.
+Bash history expansion interfered with the initial attempt. Using single quotes protected the literal exclamation marks.
 
-The source `/dir1` was required to remain associated with the `devops`
-group, so instead of replacing that group:
+## 4. user2: Editing Text and Removing Files
 
--   `user4` was added to `devops`.
--   Group write permission was added to `/dir1`.
+Created `/dir1/f2`, worked through removal of `/dir6` and `/dir8` with the necessary privilege boundary, and edited `/f3`:
 
-For the destination:
+- Replaced `DevOps` with `devops` without a text editor.
+- Used `vi` to duplicate the first line ten times, producing 11 lines total (`wc -l /f3`).
+- Replaced `Engineer` with `engineer` using a shell command.
+- Removed `/f3` with root privileges because its parent was `/`.
 
--   `/dir2/dir1/dir2` was assigned to the `app` group.
--   Group write permission was added.
+### Why `sed -i` failed
 
-The move then succeeded.
+`/f3` was writable by the user through group permissions, but `/` was not. GNU `sed -i` commonly creates a temporary file alongside its target and then renames it, requiring permission to create entries in `/`.
 
-### Major Lesson
+A non-in-place alternative used a temporary file in a writable directory:
 
-Moving a file is largely a **directory permission operation**.
-
-To move a file between directories, the user needs appropriate
-permissions on the source and destination parent directories. The write
-permission on the file itself is not what determines whether its
-directory entry can be moved.
-
-## 11. Renaming /f2 to /f4
-
-`/f2` was:
-
-``` text
-user1:devops
+```bash
+sed 's/Engineer/engineer/g' /f3 > /tmp/f3.tmp
+cat /tmp/f3.tmp > /f3
+rm /tmp/f3.tmp
 ```
 
-and `user4` was already a member of `devops`.
+This works when the user can write the target file, even if they cannot replace its directory entry. It is **not atomic**; for production workflows, use a carefully permissioned temporary location and an appropriate replacement strategy.
 
-However:
+An earlier `sed ... /f3 | tee /f3` attempt succeeded in the lab but is unsafe because `tee` may truncate the input file before `sed` has finished reading it. Avoid reading and overwriting the same file in a pipeline.
 
-``` bash
-mv /f2 /f4
+## 5. root: Searching and Inspecting
+
+Searched for all files named `f3`:
+
+```bash
+find / -type f -name 'f3' 2>/dev/null
 ```
 
-failed with:
+Found, among others:
 
-``` text
-mv: cannot move '/f2' to '/f4': Permission denied
+```text
+/dir7/f3
+/dir2/dir1/dir2/f3
 ```
 
-The important object was not `/f2` itself but its parent directory `/`.
+Counted regular files directly under `/`:
 
-`/` was:
-
-``` text
-root:root
-rwxr-xr-x
+```bash
+find / -maxdepth 1 -type f 2>/dev/null | wc -l
 ```
 
-`user4` therefore had no write permission on `/`.
+The result was `1` at that stage of the lab. Printed the last passwd entry using:
 
-Renaming `/f2` to `/f4` requires removing one directory entry and
-creating another inside `/`, so write permission on `/` is required.
-
-The lab does not explicitly provide a safe permission arrangement for
-`user4` to perform this operation. The root directory was deliberately
-**not** made globally writable.
-
-### Major Lesson
-
-A user can potentially rename or delete a file they do not own if they
-have the necessary permissions on the parent directory.
-
-Likewise, owning or being able to read a file does not automatically
-grant permission to rename or delete it.
-
-## Commands and Concepts Practiced
-
-``` text
-useradd
-usermod
-id
-getent
-su
-sudo
-chown
-chmod
-mkdir
-touch
-mv
-ls
+```bash
+tail -n 1 /etc/passwd
 ```
 
-Concepts covered so far:
+**Lesson:** `find /` can be expensive because it traverses much of the filesystem. Narrow the search root where possible; `-xdev` can restrict traversal to one filesystem.
 
--   User and group management
--   Primary vs supplementary groups
--   File ownership
--   Directory ownership
--   Numeric and symbolic permissions
--   Privilege escalation
--   Home directories
--   Login shells
--   Directory traversal
--   Parent-directory permissions
--   Permission troubleshooting
+## 6. EBS: Attach, Format, and Mount
 
-## Current Checkpoint
+Created a **5 GiB EBS volume** in the same Availability Zone as the running EC2 instance and attached it. Although the AWS attachment name was `/dev/sdf`, Linux exposed it as an NVMe device:
 
-Paused after the `user4` portion of the project.
+```text
+/dev/nvme0n1  8G  root disk — do not format
+/dev/nvme1n1  5G  new EBS lab disk
+```
 
-Next session will continue with the remaining `user1`, `user2`, root,
-filesystem search, and EBS/storage tasks.
+Checked the device before formatting:
+
+```bash
+lsblk
+lsblk -f
+```
+
+The new device initially had no filesystem. Created ext4 on the **verified lab device**:
+
+```bash
+mkfs.ext4 /dev/nvme1n1
+```
+
+The filesystem received UUID:
+
+```text
+4a31efbe-af4a-4d09-8d87-ddcba62d579e
+```
+
+Created a mount point, mounted the device, and verified it:
+
+```bash
+mkdir -p /data
+mount /dev/nvme1n1 /data
+df -h /data
+lsblk
+touch /data/f1
+ls /data
+```
+
+Observed:
+
+```text
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme1n1    4.9G  1.3M  4.6G   1% /data
+```
+
+`/data` contained `f1` and the ext4-created `lost+found` directory.
+
+### Storage model
+
+1. **Attach a block device:** the OS sees addressable storage.
+2. **Create a filesystem:** ext4 supplies metadata, inodes, directories, and free-space management.
+3. **Mount:** the filesystem becomes accessible through a path in the Linux directory tree.
+
+Partitioning is optional for this simple single-filesystem lab. Mounting with `mount` alone does not configure persistence across reboots; production systems often use filesystem UUIDs in `/etc/fstab`.
+
+## 7. Cleanup: Users, Groups, and Storage
+
+Deleted the requested root-level lab directories and files. Because `/` was not writable by `user5`, temporary sudo access was used in this disposable environment; this was a deliberate lab shortcut, **not a recommended production privilege model**.
+
+Removed users and their home directories:
+
+```bash
+userdel -r user2
+```
+
+Encountered several messages:
+
+- `mail spool ... not found`: harmless when no spool existed.
+- `group user2 not removed`: deleting a user does not necessarily remove a same-named group, particularly when it is not the user's primary group.
+- `user5 is currently used by process 60308`: an active `-bash` shell was keeping the account in use. Inspected it with `ps -fp 60308` and closed the session before account deletion.
+
+Verified and removed leftover groups using `getent group` and `groupdel`. Final lookup for lab groups returned no entries.
+
+### Unmount and AWS cleanup
+
+```bash
+umount /data
+lsblk
+ls -la /data
+rmdir /data
+```
+
+`lsblk` showed the 5 GiB device with no mount point, and `/data` was empty before removal. **Unmounting did not delete `f1` from the EBS filesystem**; it only removed access through `/data`.
+
+Finally detached and deleted the temporary 5 GiB EBS volume and terminated the EC2 instance through AWS.
+
+## 8. Main Takeaways
+
+- Filesystem ownership and parent-directory permissions answer different questions.
+- Broad `sudo` privileges are a shortcut, not a substitute for designing least-privilege access.
+- Shell quoting matters, particularly with history-expansion characters such as `!`.
+- Text-replacement tools can require different permissions depending on whether they edit bytes or replace directory entries.
+- A block device is not automatically a mounted filesystem.
+- Verify the device before formatting; verify the mount before writing; unmount before detaching.
+- Inspect active processes before deleting users, and verify leftover groups after account removal.
+- Document deviations from instructions rather than implying a task was performed exactly as written.
+
+**Final status:** Project completed; temporary AWS resources cleaned up.

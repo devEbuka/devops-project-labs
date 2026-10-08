@@ -1,59 +1,52 @@
 # Linux Systems Administration Lab
 
-Hands-on Linux administration project covering user management,
-permissions, filesystem operations, and storage on an Ubuntu EC2
-instance.
+> **Status:** Completed — October 2026
 
-> **Status:** In Progress
+A hands-on Linux administration lab on an Ubuntu AWS EC2 instance, covering identity management, filesystem permissions, command-line file operations, text processing, block storage, and safe infrastructure cleanup.
+
+**Reference:** [DevOps Project 03 — Fun with Linux for Cloud & DevOps Engineers](https://github.com/NotHarshhaa/DevOps-Projects/tree/main/DevOps-Project-03)
 
 ## Environment
 
--   AWS EC2
--   Ubuntu Linux
--   Bash
+- AWS EC2 (Ubuntu Linux, `t3.micro`)
+- Bash and standard GNU/Linux utilities
+- 8 GiB root EBS volume and an additional 5 GiB EBS volume
+- ext4 filesystem mounted at `/data`
 
-## Tasks Completed
+## What I Implemented
 
--   Created and managed Linux users and groups.
--   Configured primary and supplementary group memberships.
--   Built the required multi-level filesystem hierarchy.
--   Managed file and directory ownership with `chown`.
--   Configured permissions using symbolic and numeric `chmod`.
--   Configured shared directory access using Linux groups.
--   Troubleshot user home directory and login shell configuration.
--   Diagnosed permission failures when creating, moving, and renaming
-    files.
--   Applied source and destination directory permissions to allow
-    controlled file movement.
+- Created five Linux users and managed primary and supplementary groups (`devops`, `aws`, `app`, and `database`).
+- Built a multi-level directory hierarchy and configured ownership and permissions using `chown`, `chmod`, and group membership.
+- Created, moved, renamed, searched for, edited, and removed files as different users.
+- Practiced `find`, `tail`, `sed`, `vi`, `tee`, `wc`, `getent`, and shell redirection.
+- Created and attached a 5 GiB EBS volume, identified its Linux device name, formatted it as ext4, and mounted it at `/data`.
+- Verified storage using `lsblk -f` and `df -h`, created `/data/f1`, and safely unmounted the filesystem.
+- Removed lab users, groups, home directories, and mount points; detached and deleted the EBS volume and terminated the EC2 instance.
 
-## Key Lessons
+## Selected Verification
 
--   Directory `r`, `w`, and `x` permissions behave differently from file
-    permissions.
--   `x` controls directory traversal, while `w` controls creating,
-    deleting, and renaming entries.
--   Moving or deleting a file depends heavily on the permissions of its
-    parent directory.
--   Supplementary groups provide controlled shared access without
-    granting unnecessary privileges.
--   `sudo` elevates individual commands rather than permanently making a
-    user root.
--   Permission and ownership changes should be verified instead of
-    assuming a silent command succeeded.
+```bash
+lsblk -f                       # Identify device filesystems and mount points
+sudo mkfs.ext4 /dev/nvme1n1    # Format the verified, empty lab volume
+sudo mount /dev/nvme1n1 /data  # Make its filesystem accessible at /data
+df -h /data                    # Verify the mount and available space
+sudo umount /data              # Safely disconnect the filesystem
+```
 
-## Issues Encountered
+The new EBS volume appeared as `/dev/nvme1n1` (5 GiB) and was mounted successfully at `/data`. The mount reported approximately **4.9 GiB total** and **4.6 GiB available**. The filesystem retained `/data/f1` after unmounting; only its directory-tree access was removed.
 
--   `user4` was created without a home directory and initially used
-    `/bin/sh`; both were corrected.
--   Several operations in the original lab required permissions that
-    were not explicitly configured.
--   Rather than making system directories globally writable, permissions
-    were adjusted using ownership and group membership where
-    appropriate.
+> **Safety:** Device names vary by instance and attachment. Always verify the target before running `mkfs`, which destroys existing filesystem data.
 
-## Progress
+## Problems Solved and Lessons Learned
 
-Completed through the `user4` filesystem and permissions exercises.
+- **Directory permissions govern entry operations.** Moving or deleting a file requires suitable permissions on its parent directory, not just ownership of the file.
+- **Lab instructions can omit necessary privileges.** Several exercises asked unprivileged users to create or delete entries directly under `/`, which was `root:root` with mode `755`. I avoided making `/` world-writable and used controlled administrative access where needed.
+- **`sed -i` needs directory write access.** It commonly creates a temporary file in the target directory, so it failed when an ordinary user could modify `/f3` but not create entries under `/`.
+- **Account deletion and group deletion are separate.** `userdel -r` removes a user's home directory, but unrelated or leftover groups may remain; active user processes can block deletion.
+- **Block device, filesystem, and mount point are distinct.** Attaching EBS exposes storage, formatting creates filesystem structures, and mounting connects the filesystem to a path.
 
-Remaining work includes additional user exercises, file manipulation,
-filesystem searches, and EBS volume creation and mounting.
+## Outcome
+
+Completed the lab and cleaned up its AWS resources. The work strengthened my understanding of Linux identity and access management, filesystem behavior, storage administration, and troubleshooting rather than relying on commands without understanding their effects.
+
+See [notes.md](notes.md) for detailed observations, commands, limitations, and troubleshooting.
