@@ -12,7 +12,8 @@ The lab is being implemented manually in the AWS Console to understand the infra
 
 ## Architecture
 
-[View the architecture diagram](./Architecture.png)
+<img width="1536" height="1024" alt="VPC_arch" src="https://github.com/user-attachments/assets/808a0c1b-eed6-402f-af11-1ef1f07bfdf9" />
+
 
 The diagram represents the **target design**. Some components are already deployed, while others are planned; the progress table below is the source of truth for implementation status.
 
