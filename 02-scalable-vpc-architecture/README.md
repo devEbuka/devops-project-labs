@@ -12,7 +12,7 @@ The lab is being implemented manually in the AWS Console to understand the infra
 
 ## Architecture
 
-[View the architecture diagram](./architecture.png)
+[View the architecture diagram](./Architecture.png)
 
 The diagram represents the **target design**. Some components are already deployed, while others are planned; the progress table below is the source of truth for implementation status.
 
