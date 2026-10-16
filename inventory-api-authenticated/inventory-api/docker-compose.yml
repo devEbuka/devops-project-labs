@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: local-dev-only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  api:
+    build: .
+    ports:
+      - "8055:8055"
+    environment:
+      DATABASE_URL: postgresql+psycopg://inventory:local-dev-only@db:5432/inventory
+      INSTANCE_ID: local-compose
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+  init:
+    build: .
+    command: ["python", "-m", "scripts.init_db"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://inventory:local-dev-only@db:5432/inventory
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["setup"]
+volumes:
+  pgdata:
