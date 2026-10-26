@@ -1,0 +1,28 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+*.tfplan
+tfplan
+plan.txt
+crash.log
+crash.*.log
